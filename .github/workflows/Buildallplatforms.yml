@@ -1,0 +1,178 @@
+name: Build all platforms
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.7'
+  SOURCE_REPO: AstralSightStudios/Facetory
+  UI_REPO: AstralSightStudios/ClaralightDesign-Flutter
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: Facetory
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UI_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: ClaralightDesign-Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build libgtk-3-dev liblzma-dev
+      - name: Install dependencies
+        working-directory: Facetory
+        run: flutter pub get
+      - name: Build Linux
+        working-directory: Facetory
+        run: flutter build linux --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: facetory-linux
+          path: Facetory/build/linux/x64/release/bundle
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: Facetory
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UI_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: ClaralightDesign-Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        working-directory: Facetory
+        shell: pwsh
+        run: flutter pub get
+      - name: Build Windows
+        working-directory: Facetory
+        shell: pwsh
+        run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: facetory-windows
+          path: Facetory/build/windows/x64/runner/Release
+
+  build-android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: Facetory
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UI_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: ClaralightDesign-Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build unsigned Android APK
+        working-directory: Facetory
+        run: |
+          flutter build apk --debug
+          mkdir -p build/release-apk
+          cp build/app/outputs/flutter-apk/app-debug.apk build/release-apk/Facetory-android-unsigned.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: facetory-android-apk
+          path: |
+            Facetory/build/app/outputs/flutter-apk/app-release.apk
+            Facetory/build/release-apk/*.apk
+
+  build-ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: Facetory
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UI_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: ClaralightDesign-Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        working-directory: Facetory
+        run: flutter pub get && (cd ios && pod install)
+      - name: Build unsigned iOS IPA
+        working-directory: Facetory
+        run: |
+          flutter build ios --release --no-codesign
+          mkdir -p build/ios/ipa/Payload
+          ditto build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
+          (cd build/ios/ipa && zip -qry Facetory-unsigned.ipa Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: facetory-ios-ipa
+          path: |
+            Facetory/build/ios/ipa/*.ipa
+            !Facetory/build/ios/ipa/Payload/**
+
+  build-macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: Facetory
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UI_REPO }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: ClaralightDesign-Flutter
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        working-directory: Facetory
+        run: flutter pub get && (cd macos && pod install)
+      - name: Build macOS app
+        working-directory: Facetory
+        run: flutter build macos --release --no-codesign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: facetory-macos
+          path: Facetory/build/macos/Build/Products/Release/*.app
